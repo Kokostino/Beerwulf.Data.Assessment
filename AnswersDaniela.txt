@@ -1,0 +1,96 @@
+ASSESSMENT BEERWULF --- Daniela Herschmann
+
+1. The data for this exercise can be found in the `data.zip` file.
+
+   -> Yes I found it
+
+2. Design a star schema model with facts and dimensions, generate the load scripts to populate the schema. 
+   Provide the load scripts, alongside an Entity Relationship Diagram (You can use any of the online ERD softwares available, export an image and upload it). 
+
+   -> Script: CreateDB.py
+      Remark: partsupp.tbl had no primary key column, hence I added autoincrement to its key
+
+   -> Entity Relationship Diagram: ERD_SHOOTINGSTAR.bmp
+
+3. Describe how you can schedule this process to run multiple times per day (considering the Microsoft Azure Data Stack).
+ 
+   -> Azure Logic Apps (according to google, I have not yet used Azure)
+      Set trigger to fire multiple times a day and start the process
+
+4. Describe how you would deploy your code to production, and allow for future maintenance. 
+
+   -> Deploy to test environment, test, deploy to production
+   -> Have separate branches to control the versions with previous code, current code, and code in developing stage
+   -> Push to production whenever necessary after testing on the testing branch
+
+5. A Data Warehouse is highly used to deliver insights to end-users from different departments. Can you use the designed star schema to come up with optimized SQL statements to answer the following questions:
+
+   -> Check out task5.sql
+
+a) What are the bottom 3 nations in terms of revenue? 
+
+	SELECT Orders.o_totalprice, Nation.n_name
+	FROM Orders
+	LEFT JOIN Customer ON Orders.o_custkey=Customer.c_custkey
+	LEFT JOIN Nation ON Nation.n_nationkey = Customer.c_nationkey
+	GROUP BY Nation.n_name
+	ORDER BY Orders.o_totalprice ASC LIMIT 3;
+
+   -> INDONESIA, CHINA, CANADA
+
+b) From the top 3 nations, what is the most common shipping mode?---
+
+	SELECT COUNT(Lineitem.l_shipmode), Lineitem.l_shipmode FROM (
+		SELECT SUM(Orders.o_totalprice), Nation.n_name, Orders.o_orderkey, Orders.o_custkey, Customer.c_nationkey
+		FROM Orders
+		LEFT JOIN Customer ON Orders.o_custkey=Customer.c_custkey
+		LEFT JOIN Nation ON Nation.n_nationkey = Customer.c_nationkey
+		GROUP BY Nation.n_name
+		ORDER BY SUM(Orders.o_totalprice) DESC LIMIT 3)
+		AS TOPNATIONS
+	LEFT JOIN Lineitem ON Lineitem.l_orderkey=TOPNATIONS.o_orderkey
+	GROUP BY l_shipmode
+	ORDER BY COUNT(l_shipmode) DESC;
+
+   -> MAIL, REG AIR, TRUCK, RAIL, FOB
+
+c) What are the top 5 selling months?---
+
+	SELECT SUM(o_totalprice), strftime('%m',Orders.o_orderdate) as o_month 
+	FROM ORDERS
+	GROUP BY o_month
+	ORDER BY SUM(o_totalprice) DESC LIMIT 5;
+
+   -> MAY, MARCH, JANUARY, JULY, APRIL
+
+d) Who are the top customer(s) in terms of either revenue or quantity?---
+
+	---revenue:---
+	SELECT SUM(Orders.o_totalprice), Customer.c_name 
+	FROM Customer
+	JOIN Orders ON Customer.c_custkey=Orders.o_custkey
+	GROUP BY c_name
+	ORDER BY SUM(Orders.o_totalprice) DESC LIMIT 5;
+
+   -> Customer #1489, Customer #214, Customer #1396, Customer #1246, Customer #73
+
+	---quantity:---
+	SELECT SUM(Lineitem.l_quantity),  Customer.c_name FROM Customer
+	JOIN Orders ON Customer.c_custkey=Orders.o_custkey
+	JOIN Lineitem ON Orders.o_orderkey=Lineitem.l_orderkey
+	GROUP BY c_name
+	ORDER BY SUM(l_quantity) DESC LIMIT 5;
+
+   -> Customer #530, Customer #685, Customer #19, Customer #1027, Customer #167
+
+e) Compare the sales revenue on a financial year-to-year (01 July to 30 June) basis.---
+
+	SELECT strftime('%Y', Orders.o_orderdate, '-6 months') AS FISCAL_YEAR, 
+	       strftime('%Y %m', Orders.o_orderdate) AS REAL_DATE,
+	       SUM(o_totalprice) 
+	FROM ORDERS
+	GROUP BY FISCAL_YEAR
+	ORDER BY SUM(o_totalprice) DESC;
+
+   -> 1993/1994 best but in general stable, data only for the first 2 months of the fiscal year 1998/1999, hence it has the lowest revenue
+
