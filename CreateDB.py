@@ -1,6 +1,6 @@
 import sqlite3
 
-conn = sqlite3.connect('shootingstarschema.sqlite')
+conn = sqlite3.connect('shootingstar.sqlite')
 cur = conn.cursor()
 
 cur.executescript('''
